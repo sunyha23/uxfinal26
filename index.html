@@ -65,6 +65,8 @@ body.scene.live #liveWrap{opacity:1}
 #liveWrap iframe{position:absolute;left:50%;top:50%;width:max(100vw,177.78vh);height:max(100vh,56.25vw);transform:translate(-50%,-50%);border:0}
 #tint{position:fixed;inset:0;background:rgba(0,0,0,.3);opacity:0;transition:opacity .6s;pointer-events:none}
 body.scene.live #tint{opacity:1}
+body.scene.waiting #bg{opacity:0}
+body.scene.waiting{--ink:#111;--ink-soft:rgba(17,17,17,.45);--line:rgba(17,17,17,.9)}
 body.scene.live{--ink:#fff;--ink-soft:rgba(255,255,255,.7);--line:rgba(255,255,255,.92)}
 #liveTag{position:fixed;left:50%;top:calc(84px + env(safe-area-inset-top,0px));transform:translateX(-50%);margin:0;font-size:11px;letter-spacing:.08em;color:var(--ink-soft);white-space:nowrap;display:none}
 body.scene #liveTag{display:block}
@@ -134,9 +136,16 @@ Object.assign(CITIES[5],{ko:"상트페테르부르크",en:"ST. PETERSBURG",tz:"E
 Object.assign(CITIES[11],{ko:"브라질 캄보리우",en:"CAMBORIÚ",tz:"America/Sao_Paulo",lat:-26.99,lng:-48.63});
 Object.assign(CITIES[15],{ko:"캐나다 캔모어",en:"CANMORE",tz:"America/Edmonton",lat:51.09,lng:-115.36});
 Object.assign(CITIES[16],{ko:"라스베이거스",en:"LAS VEGAS",tz:"America/Los_Angeles",lat:36.11,lng:-115.17});
-const COUNTRY={19:'TONGA',20:'FIJI',21:'AUSTRALIA',22:'AUSTRALIA',23:'KOREA',0:'CHINA',1:'THAILAND',2:'BANGLADESH',3:'PAKISTAN',4:'GEORGIA',5:'RUSSIA',6:'EGYPT',7:'FRANCE',8:'UK',9:'CAPE VERDE',10:'GREENLAND',11:'BRAZIL',12:'VENEZUELA',13:'USA',14:'MEXICO',15:'CANADA',16:'USA'};
+Object.assign(CITIES[0],{ko:"필리핀 다바오",en:"DAVAO",tz:"Asia/Manila",lat:7.07,lng:125.61});
+Object.assign(CITIES[2],{ko:"키르기스스탄 비슈케크",en:"BISHKEK",tz:"Asia/Bishkek",lat:42.87,lng:74.59});
+Object.assign(CITIES[6],{ko:"에스토니아 탈린",en:"TALLINN",tz:"Europe/Tallinn",lat:59.44,lng:24.75});
+Object.assign(CITIES[9],{ko:"포르투갈 아조레스",en:"AZORES",tz:"Atlantic/Azores",lat:38.66,lng:-27.22});
+Object.assign(CITIES[12],{ko:"퀴라소 빌렘스타트",en:"WILLEMSTAD",tz:"America/Curacao",lat:12.11,lng:-68.93});
+Object.assign(CITIES[19],{ko:"뉴질랜드 오클랜드",en:"AUCKLAND",tz:"Pacific/Auckland",lat:-36.85,lng:174.76});
+const COUNTRY={19:'NEW ZEALAND',20:'FIJI',21:'AUSTRALIA',22:'AUSTRALIA',23:'KOREA',0:'PHILIPPINES',1:'THAILAND',2:'KYRGYZSTAN',3:'PAKISTAN',4:'GEORGIA',5:'RUSSIA',6:'ESTONIA',7:'FRANCE',8:'UK',9:'PORTUGAL',10:'GREENLAND',11:'BRAZIL',12:'CURAÇAO',13:'USA',14:'MEXICO',15:'CANADA',16:'USA'};
 // 유튜브 라이브캠 (없는 도시는 코드로 그린 배경)
-const CAMS={23:'vk5BHoDxXf0',1:'UemFRPrl1hk',4:'-0zttkXFWvE',5:'w_Dg2vC0tUE',7:'-xzg3wujOVM',8:'MXmzsjABC-U',10:'Tf4z_xtroi4',11:'pkHBcvRuyaA',13:'mkX71WMAmNI',14:'Bvbll8YMKAY',15:'_0wPODlF9wU',16:'C1hrfERKzbg',21:'5uZa3-RMFos'};
+const CAMS={0:'DSRm7V_bsm8',2:'GQRnp3GLx1U',6:'VhVgZi2lGv0',9:'zpRQo4N-6LQ',12:'28U-t3fA9ks',19:'nLCMw_Fh0u0',22:'pIaqtdmfbZ4',3:'jRBiRyYj8UI',20:'t1tDemkcu-s',23:'vk5BHoDxXf0',1:'UemFRPrl1hk',4:'-0zttkXFWvE',5:'w_Dg2vC0tUE',7:'-xzg3wujOVM',8:'MXmzsjABC-U',10:'Tf4z_xtroi4',11:'pkHBcvRuyaA',13:'mkX71WMAmNI',14:'Bvbll8YMKAY',15:'_0wPODlF9wU',16:'C1hrfERKzbg',21:'5uZa3-RMFos'};
+const RECORDED={3:true,20:true};   // 라이브캠이 없는 시간대 → 녹화 영상 (카라치, 수바)
 const delayOf=h=>{let d=(h-23+24)%24;if(d>17)d-=24;return d;};          // 04시 → +5, 21시 → −2
 const ORDER=Object.keys(CITIES).map(Number).sort((a,b)=>delayOf(a)-delayOf(b));
 const stageOf=d=>d<=0?0:d<=2?1:d<=4?2:3;                                  // 올빼미 단계: 귀깃 → 눈 → 전부
@@ -351,17 +360,36 @@ function update(fromScroll){
   $('#landKR').classList.toggle('dim',S.scene==='city');$('#landCity').classList.toggle('dim',S.scene==='kr');
   const t=localParts(c.tz);let cap;
   if(d===0)cap=`23시에 잠드는 당신은 <b>서울 사람</b>이에요.`;
-  else if(S.scene==='kr')cap=d>0?`서울에서 당신은 <b>올빼미</b>입니다. 당신이 잠드는 ${korHour(S.bed)}, 서울은 잠들어 있어요.`:`서울에서 당신은 일찍 잠드는 사람입니다.`;
+  else if(S.scene==='kr')cap=d>0?`서울에서 당신은 <b>올빼미</b>입니다. 당신이 잠드는 ${korHour(S.bed)}의 서울.`:`서울에서 당신은 일찍 잠드는 사람입니다.`;
   else if(S.scene==='city')cap=`${josa(c.ko,'에서','에서')} 당신은 올빼미가 아니에요. 지금 ${partOfDay(t.h)}을 보내는 <b>주민</b>입니다.`;
   else cap=`서울 ${p2(S.bed)}:00 = ${c.ko} 23:00 · 시차 <b>${Math.abs(d)}시간</b>`;
   $('#caption').innerHTML=cap;
   setStage();drawBg();drawDial();tick();
-  const cam=S.scene==='main'?null:(CAMS[S.scene==='kr'?23:S.bed]||null);
-  if(cam!==wantCam){wantCam=cam;setLive(cam);}
+  const src=camSrc(),key=src?src.id+'@'+src.start:null;
+  if(key!==wantCam){wantCam=key;setLive(src);}
 }
 
-/* ===================== 유튜브 라이브캠 배경 (실패하면 그림 배경 그대로) ===================== */
-let YTP=null,ytReady=null,liveTimer=null,wantCam=undefined;
+/* ===================== 서울 장면: 내 취침 시각의 한강 (같은 카메라의 지난 라이브 녹화본을 그 시각으로 감기) ===================== */
+// RIVERWORKER 여의도 한강 카메라의 저장된 라이브 — 시작 시각(KST, 초)을 알고 있어 원하는 시각으로 정확히 이동
+const SEOUL_VODS=[
+  {id:'xmbOWMMIc_Y',from:77977,hours:[22,23,0,1,2,3,4,5,6,7,8]},      // 2025.3.28 21:39:37 ~ 3.29 08:59 (밤~아침)
+  {id:'8g0cQKM-eLQ',from:33683,hours:[9,10,11,12,13,14,15,16,17,18,19]}, // 2025.8.19 09:21:23 ~ 20:01 (낮)
+  {id:'ASANgVa9-7k',from:56494,hours:[20,21]}                          // 2026.4.24 15:41:34 ~ 23:27 (저녁, 조금 줌인)
+];
+function seoulClip(h){
+  const v=SEOUL_VODS.find(v=>v.hours.includes(h));
+  const start=Math.max(30,((h*3600-v.from)%86400+86400)%86400);
+  return{id:v.id,start,kind:'seoul'};
+}
+function camSrc(){
+  if(S.scene==='main')return null;
+  if(S.scene==='kr')return seoulClip(S.bed);
+  const id=CAMS[S.bed];if(!id)return null;
+  return RECORDED[S.bed]?{id,start:60,kind:'rec'}:{id,start:0,kind:'live'};
+}
+
+/* ===================== 유튜브 배경 (불러오는 동안 흰 화면) ===================== */
+let YTP=null,ytReady=null,liveTimer=null,wantCam=undefined,curSrc=null;
 function loadYT(){
   if(ytReady)return ytReady;
   ytReady=new Promise(res=>{
@@ -372,21 +400,26 @@ function loadYT(){
   });return ytReady;
 }
 function liveStatus(st){
-  const t={none:'라이브캠 없음 · 그림 배경',connecting:'라이브캠 연결 중…',live:'● LIVE',fail:'라이브캠 연결 안 됨 · 그림 배경'}[st]||'';
-  $('#liveTag').textContent=t;if(st!=='live')document.body.classList.remove('live');
+  const t={none:'라이브캠 없음 · 그림 배경',connecting:'영상 불러오는 중…',live:'● LIVE',rec:'● 녹화 영상 · 이 시간대엔 라이브캠이 없어요',
+           seoul:`● 서울 ${p2(S.bed)}:00의 한강 · 같은 카메라의 녹화 영상`,fail:'영상 연결 안 됨'}[st]||'';
+  $('#liveTag').textContent=t;if(!['live','rec','seoul'].includes(st))document.body.classList.remove('live');
 }
-async function setLive(id){
-  clearTimeout(liveTimer);document.body.classList.remove('live');
-  if(!id){if(YTP&&YTP.stopVideo)YTP.stopVideo();liveStatus(S.scene==='main'?'':'none');return;}
+async function setLive(src){
+  clearTimeout(liveTimer);document.body.classList.remove('live');document.body.classList.toggle('waiting',!!src);curSrc=src;
+  if(!src){if(YTP&&YTP.stopVideo)YTP.stopVideo();liveStatus(S.scene==='main'?'':'none');return;}
   liveStatus('connecting');
-  const ok=await loadYT();if(wantCam!==id)return;if(!ok){liveStatus('fail');return;}
+  const key=src.id+'@'+src.start;
+  const ok=await loadYT();if(wantCam!==key)return;if(!ok){liveStatus('fail');return;}
   if(!YTP){
-    YTP=new YT.Player('yt',{videoId:id,playerVars:{autoplay:1,mute:1,controls:0,playsinline:1,rel:0,modestbranding:1,iv_load_policy:3,disablekb:1,fs:0},
+    YTP=new YT.Player('yt',{videoId:src.id,playerVars:{start:src.start,autoplay:1,mute:1,controls:0,playsinline:1,rel:0,modestbranding:1,iv_load_policy:3,disablekb:1,fs:0},
       events:{onReady:e=>{e.target.mute();e.target.playVideo();},
-              onStateChange:e=>{if(e.data===1&&wantCam){document.body.classList.add('live');liveStatus('live');}},
+              onStateChange:e=>{const c=curSrc;if(!c)return;
+                if(e.data===0&&c.kind!=='live')e.target.seekTo(c.start);
+                if(e.data===1){document.body.classList.remove('waiting');document.body.classList.add('live');liveStatus(c.kind);}
+                else if(e.data===-1||e.data===5)e.target.playVideo();},
               onError:()=>liveStatus('fail')}});
-  }else{YTP.loadVideoById(id);YTP.mute();}
-  liveTimer=setTimeout(()=>{if(!document.body.classList.contains('live')&&wantCam===id)liveStatus('fail');},12000);
+  }else{YTP.loadVideoById({videoId:src.id,startSeconds:src.start});YTP.mute();YTP.playVideo();}
+  liveTimer=setTimeout(()=>{if(!document.body.classList.contains('live')&&wantCam===key)liveStatus('fail');},25000);
 }
 function tick(){
   const k=localParts('Asia/Seoul'),c=localParts(city().tz);
