@@ -1,0 +1,368 @@
+<!doctype html>
+<html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"></head><body>
+<title>OWL CLOCK</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Stencil+Display:wght@700;800&family=IBM+Plex+Sans+KR:wght@400;500&display=swap">
+<style>
+/* OWL CLOCK — 흰 화면, 네 모서리 시계, 기울어진 수평선. 나라 이름을 누르면 그 나라 배경으로 들어간다 */
+:root{
+  --paper:#ffffff;
+  --ink:#111111;
+  --ink-soft:rgba(17,17,17,.45);
+  --line:rgba(17,17,17,.9);
+  --red:#E5402A;           /* 취침 시각 — 유일한 강조색 */
+  --f-num:"Big Shoulders Stencil Display","IBM Plex Sans KR",sans-serif;
+  --f-text:"IBM Plex Sans KR",system-ui,sans-serif;
+  --g:max(20px,env(safe-area-inset-left,0px));
+  --gr:max(20px,env(safe-area-inset-right,0px));
+  color-scheme:light;
+}
+body{margin:0;background:var(--paper);color:var(--ink);font-family:var(--f-text);overflow:hidden;-webkit-font-smoothing:antialiased;touch-action:none}
+body.scene{--ink:#fff;--ink-soft:rgba(255,255,255,.6);--line:rgba(255,255,255,.9)}
+body.scene.lightsky{--ink:#111;--ink-soft:rgba(17,17,17,.55);--line:rgba(17,17,17,.85)}
+button{font:inherit;color:inherit;background:none;border:0;padding:0;cursor:pointer}
+:focus-visible{outline:2px solid var(--red);outline-offset:4px}
+
+#bg{position:fixed;inset:0;width:100%;height:100%;opacity:0;transition:opacity .6s}
+body.scene #bg{opacity:1}
+#dial{position:fixed;inset:0;width:100%;height:100%;pointer-events:none}
+
+.num{font-family:var(--f-num);font-weight:800;line-height:.9;letter-spacing:.01em;font-variant-numeric:tabular-nums}
+.corner{position:fixed;font-size:clamp(34px,4.6vw,56px);transition:color .4s}
+.corner small{display:block;font-family:var(--f-text);font-weight:500;font-size:11px;letter-spacing:.08em;color:var(--ink-soft);margin-top:8px;line-height:1.4}
+.tl{left:var(--g);top:calc(22px + env(safe-area-inset-top,0px))}
+.tr{right:var(--gr);top:calc(22px + env(safe-area-inset-top,0px));text-align:right}
+.tc{left:50%;top:calc(22px + env(safe-area-inset-top,0px));transform:translateX(-50%)}
+.bl{left:var(--g);bottom:calc(22px + env(safe-area-inset-bottom,0px))}
+.bc{left:50%;bottom:calc(22px + env(safe-area-inset-bottom,0px));transform:translateX(-50%)}
+.br{right:var(--gr);bottom:calc(22px + env(safe-area-inset-bottom,0px));text-align:right;color:var(--red)}
+.br small{color:var(--ink-soft)}
+.bl small{margin:0 0 8px}
+#cam{font-family:var(--f-text);font-size:11px;letter-spacing:.08em;color:var(--ink-soft);display:inline-flex;align-items:center;gap:6px}
+#cam::before{content:"";width:7px;height:7px;border-radius:50%;background:currentColor}
+#cam.on{color:var(--red)}
+
+.land{position:fixed;left:0;top:0;font-family:var(--f-num);font-weight:800;font-size:clamp(30px,4vw,48px);line-height:1;letter-spacing:.02em;white-space:nowrap;transition:color .4s,opacity .4s}
+.land:hover,.land[aria-pressed="true"]{color:var(--red)}
+.land.dim{opacity:.35}
+
+#face{position:fixed;left:50%;top:50%;width:var(--fs);height:var(--fs);transform:translate(-50%,-50%);--fs:min(36vh,42vw,330px)}
+#face canvas,#face svg{position:absolute;inset:0;width:100%;height:100%}
+#face svg{overflow:visible}
+.layer{transition:opacity .45s}
+.off{opacity:0}
+
+#caption{position:fixed;left:50%;transform:translateX(-50%);text-align:center;font-size:clamp(14px,1.4vw,17px);line-height:1.5;white-space:nowrap;transition:color .4s}
+#caption b{font-weight:500;color:var(--red)}
+#toast{position:fixed;left:50%;transform:translate(-50%,8px);background:var(--ink);color:var(--paper);padding:10px 16px;font-size:14px;opacity:0;transition:opacity .3s,transform .3s;pointer-events:none;white-space:nowrap}
+body.scene #toast{background:#fff;color:#111}
+#toast.on{opacity:1;transform:translate(-50%,0)}
+#hint{position:fixed;left:var(--g);bottom:calc(96px + env(safe-area-inset-bottom,0px));font-size:12px;line-height:1.6;color:var(--ink-soft);max-width:30ch}
+#live{display:none;color:var(--red)}
+body.scene.city #live{display:inline}
+@media (max-width:640px){
+  #hint{display:none}
+  #caption{white-space:normal;width:86vw;font-size:13px}
+  .bc{display:none}
+  .bl,.br{font-size:30px}
+  .corner small{font-size:10px}
+}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+
+<canvas id="bg" aria-hidden="true"></canvas>
+<svg id="dial" aria-hidden="true"></svg>
+
+<div class="corner tl num" id="krNow">--:--<small>KOREA · 지금</small></div>
+<div class="corner tc num">24</div>
+<div class="corner tr num" id="cityNow">--:--<small><span id="live">● LIVE CAM 자리 · </span><span id="cityLbl">DUBAI · 지금</span></small></div>
+<div class="corner bl num"><small><button id="cam" type="button">CAM OFF</button></small><button id="home" type="button" aria-label="처음 화면으로">OWL CLOCK</button></div>
+<div class="corner bc num">12</div>
+<div class="corner br num" id="bed" role="slider" tabindex="0" aria-label="취침 시각" aria-valuemin="0" aria-valuemax="23">04:00<small>취침 시각 · 스크롤</small></div>
+
+<button class="land" id="landKR" type="button" aria-pressed="false">KOREA</button>
+<button class="land" id="landCity" type="button" aria-pressed="false">DUBAI</button>
+
+<div id="face"><canvas id="faceCv" width="600" height="600" class="off"></canvas><svg id="faceSvg" viewBox="0 0 400 400" aria-label="얼굴"></svg></div>
+<p id="caption" aria-live="polite"></p>
+<div id="toast" role="status"></div>
+<p id="hint">스크롤로 취침 시각을 바꿔 보세요.<br>나라 이름을 누르면 그 나라로 들어가요.<br>데모: 마우스로 고개, 누르면 눈 감기, 스페이스바 입 벌리기</p>
+<video id="video" playsinline muted hidden></video>
+
+<script>
+/* ===================== 도시 표 ===================== */
+const CITIES={
+  19:{ko:"누쿠알로파",en:"NUKU'ALOFA",tz:"Pacific/Tongatapu",lat:-21.14,lng:-175.2},
+  20:{ko:"수바",en:"SUVA",tz:"Pacific/Fiji",lat:-18.14,lng:178.44},
+  21:{ko:"시드니",en:"SYDNEY",tz:"Australia/Sydney",lat:-33.87,lng:151.21},
+  22:{ko:"브리즈번",en:"BRISBANE",tz:"Australia/Brisbane",lat:-27.47,lng:153.03},
+  23:{ko:"서울",en:"SEOUL",tz:"Asia/Seoul",lat:37.57,lng:126.98},
+  0:{ko:"베이징",en:"BEIJING",tz:"Asia/Shanghai",lat:39.9,lng:116.4},
+  1:{ko:"방콕",en:"BANGKOK",tz:"Asia/Bangkok",lat:13.76,lng:100.5},
+  2:{ko:"다카",en:"DHAKA",tz:"Asia/Dhaka",lat:23.81,lng:90.41},
+  3:{ko:"카라치",en:"KARACHI",tz:"Asia/Karachi",lat:24.86,lng:67.0},
+  4:{ko:"두바이",en:"DUBAI",tz:"Asia/Dubai",lat:25.2,lng:55.27},
+  5:{ko:"모스크바",en:"MOSCOW",tz:"Europe/Moscow",lat:55.76,lng:37.62},
+  6:{ko:"카이로",en:"CAIRO",tz:"Africa/Cairo",lat:30.04,lng:31.24},
+  7:{ko:"파리",en:"PARIS",tz:"Europe/Paris",lat:48.86,lng:2.35},
+  8:{ko:"런던",en:"LONDON",tz:"Europe/London",lat:51.51,lng:-0.13},
+  9:{ko:"프라이아",en:"PRAIA",tz:"Atlantic/Cape_Verde",lat:14.93,lng:-23.51},
+  10:{ko:"누크",en:"NUUK",tz:"America/Nuuk",lat:64.18,lng:-51.72},
+  11:{ko:"상파울루",en:"SÃO PAULO",tz:"America/Sao_Paulo",lat:-23.55,lng:-46.63},
+  12:{ko:"카라카스",en:"CARACAS",tz:"America/Caracas",lat:10.48,lng:-66.9},
+  13:{ko:"뉴욕",en:"NEW YORK",tz:"America/New_York",lat:40.71,lng:-74.0},
+  14:{ko:"멕시코시티",en:"MEXICO CITY",tz:"America/Mexico_City",lat:19.43,lng:-99.13},
+  15:{ko:"덴버",en:"DENVER",tz:"America/Denver",lat:39.74,lng:-104.99},
+  16:{ko:"LA",en:"LOS ANGELES",tz:"America/Los_Angeles",lat:34.05,lng:-118.24},
+};
+const SEOUL=CITIES[23];
+const delayOf=h=>{let d=(h-23+24)%24;if(d>17)d-=24;return d;};          // 04시 → +5, 21시 → −2
+const ORDER=Object.keys(CITIES).map(Number).sort((a,b)=>delayOf(a)-delayOf(b));
+const stageOf=d=>d<=0?0:d<=2?1:d<=4?2:3;                                  // 올빼미 단계: 귀깃 → 눈 → 전부
+const $=s=>document.querySelector(s);
+const p2=n=>String(n).padStart(2,'0');
+const josa=(w,a,b)=>{const c=w.charCodeAt(w.length-1);if(c<0xAC00||c>0xD7A3)return w+b;return w+((c-0xAC00)%28?a:b);};
+const korHour=h=>{const ap=h<5?'새벽':h<12?'오전':h<18?'오후':'밤';const hh=h%12===0?12:h%12;return `${ap} ${hh}시`;};
+const partOfDay=h=>h<5?'새벽':h<11?'아침':h<17?'낮':h<20?'저녁':'밤';
+
+const S={bed:4,scene:'main'};   // scene: main | kr | city
+const city=()=>CITIES[S.bed];
+
+/* ===================== 시간·해 ===================== */
+function localParts(tz,date=new Date()){
+  const o={};new Intl.DateTimeFormat('en-US',{timeZone:tz,hour:'numeric',minute:'2-digit',second:'2-digit',hourCycle:'h23'}).formatToParts(date).forEach(p=>o[p.type]=p.value);
+  return{h:+o.hour,m:+o.minute,s:+o.second};
+}
+function seoulBedDate(){const now=Date.now(),k=new Date(now+9*3600e3);let t=Date.UTC(k.getUTCFullYear(),k.getUTCMonth(),k.getUTCDate(),S.bed,0)-9*3600e3;if(t<now)t+=86400e3;return new Date(t);}
+function sunAlt(date,lat,lng){
+  const r=Math.PI/180,d=date.getTime()/86400e3-10957.5,M=r*(357.5291+.98560028*d);
+  const C=r*(1.9148*Math.sin(M)+.02*Math.sin(2*M)+.0003*Math.sin(3*M)),L=M+C+r*102.9372+Math.PI,e=r*23.4397;
+  const dec=Math.asin(Math.sin(e)*Math.sin(L)),ra=Math.atan2(Math.sin(L)*Math.cos(e),Math.cos(L));
+  const H=r*(280.16+360.9856235*d)+r*lng-ra,phi=r*lat;
+  return Math.asin(Math.sin(phi)*Math.sin(dec)+Math.cos(phi)*Math.cos(dec)*Math.cos(H))/r;
+}
+function skyFor(alt,hour){
+  const eve=hour>=12;
+  if(alt>12)return{top:'#5f9fe4',bot:'#d6e7f6',b:.96,light:true};
+  if(alt>6)return{top:eve?'#6f97d2':'#86b1e4',bot:eve?'#f5c88f':'#f6dcc2',b:.86,light:true};
+  if(alt>0)return{top:eve?'#4c5a96':'#6573b4',bot:eve?'#f0975a':'#f4b088',b:.7};
+  if(alt>-6)return{top:'#252d60',bot:eve?'#b8676a':'#86699a',b:.44};
+  if(alt>-12)return{top:'#121836',bot:'#363a68',b:.26};
+  return{top:'#05070f',bot:'#121830',b:.14};
+}
+const LIT=[.18,.1,.06,.04,.03,.05,.15,.3,.2,.1,.08,.08,.1,.1,.1,.12,.18,.35,.55,.65,.62,.55,.42,.28];
+function mix(a,b,t){const pa=hex(a),pb=hex(b);return'#'+pa.map((v,i)=>Math.round(v+(pb[i]-v)*t).toString(16).padStart(2,'0')).join('');}
+function hex(c){c=c.replace('#','');if(c.length===3)c=c.split('').map(x=>x+x).join('');return[0,2,4].map(i=>parseInt(c.slice(i,i+2),16));}
+function rng(seed){let s=seed>>>0||1;return()=>((s=Math.imul(s^s>>>15,1|s)+0x6D2B79F5|0,((s^s>>>7)>>>0)%100000)/100000);}
+function hash(str){let h=2166136261;for(const ch of str)h=Math.imul(h^ch.charCodeAt(0),16777619);return h>>>0;}
+
+/* ===================== 배경 (라이브캠 자리 — 지금은 코드로 그린 도시) ===================== */
+const bg=$('#bg'),bx=bg.getContext('2d');let W=0,H=0;
+function drawBg(){
+  const DPR=Math.min(2,devicePixelRatio||1);W=innerWidth;H=innerHeight;bg.width=W*DPR;bg.height=H*DPR;bx.setTransform(DPR,0,0,DPR,0,0);
+  if(S.scene==='main'){document.body.classList.remove('lightsky');return;}
+  const kr=S.scene==='kr',c=kr?SEOUL:city();
+  let h,alt;if(kr){h=S.bed;alt=sunAlt(seoulBedDate(),c.lat,c.lng);}else{h=localParts(c.tz).h;alt=sunAlt(new Date(),c.lat,c.lng);}
+  const sky=skyFor(alt,h);S.sky=sky;
+  document.body.classList.toggle('lightsky',!!sky.light);
+  const g=bx.createLinearGradient(0,0,0,H);g.addColorStop(0,sky.top);g.addColorStop(.75,sky.bot);bx.fillStyle=g;bx.fillRect(0,0,W,H);
+  const R=rng(hash(c.en+(kr?'k':'c')));
+  if(sky.b<.5)for(let i=0;i<140;i++){bx.fillStyle=`rgba(255,255,255,${(.15+R()*.5)*(1-sky.b*1.6)})`;bx.fillRect(R()*W,R()*H*.55,1.2,1.2);}
+  if(alt>-4){const sx=W*(h<12?.24:.76),sy=H*(.6-Math.max(0,Math.min(1,(alt+4)/50))*.45),sg=bx.createRadialGradient(sx,sy,0,sx,sy,140);
+    sg.addColorStop(0,'rgba(255,240,200,.9)');sg.addColorStop(.12,'rgba(255,225,170,.55)');sg.addColorStop(1,'rgba(255,220,160,0)');bx.fillStyle=sg;bx.fillRect(sx-140,sy-140,280,280);}
+  const base=H,lit=LIT[h],day=alt>2,body=mix(sky.bot,'#000',kr?.72:(sky.light?.22:.55)),lits=[];
+  const win=(x,y,w,hh,on)=>{if(on)lits.push([x,y,w,hh]);else if(day){bx.fillStyle=mix(sky.top,'#fff',.25)+'55';bx.fillRect(x,y,w,hh);}};
+  if(kr){
+    bx.fillStyle=mix(sky.bot,'#000',.5);bx.beginPath();bx.moveTo(0,H*.62);for(let x=0;x<=W;x+=W/12)bx.lineTo(x,H*(.52+.08*Math.sin(x/W*6+1)+R()*.03));bx.lineTo(W,H);bx.lineTo(0,H);bx.fill();
+    let x=-20,n=101;
+    while(x<W){const bw=110+R()*70,bh=H*(.24+R()*.16),y=base-bh;bx.fillStyle=body;bx.fillRect(x,y,bw,bh);
+      for(let r=0;r<Math.floor((bh-30)/15);r++)for(let cc=0;cc<Math.floor(bw/16);cc++)win(x+8+cc*16,y+22+r*15,9,7,R()<lit);
+      bx.fillStyle=mix(sky.bot,'#fff',.15)+'99';bx.font='500 11px "IBM Plex Sans KR",sans-serif';bx.fillText(n+'동',x+8,y+15);n++;x+=bw+8+R()*10;}
+  }else{
+    let x=-10;const sp=W*(.3+R()*.4);
+    while(x<W){const bw=40+R()*70,bh=H*(.12+R()*.3),y=base-bh;bx.fillStyle=body;bx.fillRect(x,y,bw,bh);
+      for(let wy=y+10;wy<base-8;wy+=12)for(let wx=x+6;wx<x+bw-8;wx+=10)win(wx,wy,5,6,R()<lit*1.15);x+=bw+3+R()*6;}
+    bx.fillStyle=body;bx.beginPath();bx.moveTo(sp-22,base);bx.lineTo(sp-10,H*.3);bx.lineTo(sp,H*.12);bx.lineTo(sp+10,H*.3);bx.lineTo(sp+22,base);bx.fill();
+  }
+  bx.fillStyle=day?'rgba(255,236,190,.35)':'rgba(255,214,140,.95)';lits.forEach(l=>bx.fillRect(...l));
+  bx.fillStyle=kr?'rgba(0,0,0,.25)':(sky.light?'rgba(255,255,255,.18)':'rgba(0,0,0,.2)');bx.fillRect(0,0,W,H);   // 글자가 읽히도록 한 겹
+}
+
+/* ===================== 시계판 + 기울어진 수평선 ===================== */
+const NS='http://www.w3.org/2000/svg',dial=$('#dial');
+function el(tag,a,parent=dial){const e=document.createElementNS(NS,tag);for(const k in a)e.setAttribute(k,a[k]);parent.appendChild(e);return e;}
+const TILT=4.5,TILT_MAX=50;   // 1시간 늦을 때마다 4.5°, 최대 50°
+function drawDial(){
+  dial.innerHTML='';const w=innerWidth,h=innerHeight,cx=w/2,cy=h/2,fs=$('#face').offsetWidth,R=Math.min(h*.36,w*.42);
+  const d=delayOf(S.bed),ink='var(--line)';
+  // 24시간 눈금 (위 24, 아래 12)
+  for(let i=0;i<24;i++){const a=i*15*Math.PI/180,l=i%6?6:12;el('line',{x1:cx+Math.sin(a)*R,y1:cy-Math.cos(a)*R,x2:cx+Math.sin(a)*(R-l),y2:cy-Math.cos(a)*(R-l),stroke:ink,'stroke-width':i%6?1:1.6,opacity:.35});}
+  // 기준 23시 (점선) / 내 취침 시각 (굵은 바늘) / 그 사이 = 시차 (빨간 호)
+  const ang=hh=>hh*15*Math.PI/180,pt=(hh,r)=>[cx+Math.sin(ang(hh))*r,cy-Math.cos(ang(hh))*r];
+  const [rx,ry]=pt(23,R*.92),[bx2,by2]=pt(S.bed,R*.92);
+  el('line',{x1:cx,y1:cy,x2:rx,y2:ry,stroke:ink,'stroke-width':1.5,'stroke-dasharray':'2 5',opacity:.6});
+  if(d!==0){const from=23*15,to=from+d*15,r=R*.97,f=from*Math.PI/180,t=to*Math.PI/180;
+    el('path',{d:`M${cx+Math.sin(f)*r} ${cy-Math.cos(f)*r} A${r} ${r} 0 ${Math.abs(d)>12?1:0} ${d>0?1:0} ${cx+Math.sin(t)*r} ${cy-Math.cos(t)*r}`,fill:'none',stroke:'var(--red)','stroke-width':3,'stroke-linecap':'round'});}
+  el('line',{x1:cx,y1:cy,x2:bx2,y2:by2,stroke:ink,'stroke-width':6,'stroke-linecap':'butt'});
+  // 수평선: 23시면 수평, 늦을수록 올빼미 나라 쪽(오른쪽)이 올라간다
+  const tilt=Math.max(-TILT_MAX,Math.min(TILT_MAX,d*TILT))*Math.PI/180,L=Math.min(w*.4,R*1.5);
+  const x1=cx-Math.cos(tilt)*L,y1=cy+Math.sin(tilt)*L,x2=cx+Math.cos(tilt)*L,y2=cy-Math.sin(tilt)*L;
+  el('line',{x1,y1,x2,y2,stroke:ink,'stroke-width':1});
+  placeLand($('#landKR'),x1,y1,-1);placeLand($('#landCity'),x2,y2,1);
+  $('#caption').style.top=(cy+fs/2+18)+'px';$('#toast').style.top=(cy+fs/2+64)+'px';
+}
+function placeLand(b,x,y,side){ // 선 끝에 세로로 세운 나라 이름 (KOREA는 아래→위, 도시는 위→아래)
+  const bw=b.offsetWidth,bh=b.offsetHeight,pad=14;
+  const px=side<0?Math.max(16,x-bh-pad):Math.min(innerWidth-bh-16,x+pad);
+  b.style.transform=`translate(${px+bh/2-bw/2}px,${y-bh/2}px) rotate(${side<0?-90:90}deg)`;
+}
+
+/* ===================== 얼굴 (사람 일러스트 + 올빼미 레이어) ===================== */
+function buildFace(){
+  $('#faceSvg').innerHTML=`
+  <defs>
+    <clipPath id="ce1"><circle cx="168" cy="212" r="25"/></clipPath><clipPath id="ce2"><circle cx="232" cy="212" r="25"/></clipPath>
+    <radialGradient id="iris" cx=".45" cy=".4" r=".7"><stop offset="0" stop-color="#ffb04a"/><stop offset=".6" stop-color="#ea861f"/><stop offset="1" stop-color="#a24c08"/></radialGradient>
+  </defs>
+  <g id="all">
+    <g id="person" class="layer">
+      <circle cx="116" cy="222" r="17" fill="#F2C99B"/><circle cx="284" cy="222" r="17" fill="#F2C99B"/>
+      <ellipse cx="200" cy="215" rx="84" ry="98" fill="#F7D7AE"/>
+      <path d="M114 214 C100 122 150 92 206 94 C270 96 306 136 288 214 C282 172 262 150 230 146 C196 172 150 160 132 150 C120 168 116 190 114 214Z" fill="#111"/>
+      <g id="pBrows" fill="#111"><rect x="146" y="180" width="40" height="8" rx="4" transform="rotate(-6 166 184)"/><rect x="214" y="180" width="40" height="8" rx="4" transform="rotate(6 234 184)"/></g>
+      <g id="pEyes" fill="#111"><ellipse cx="168" cy="214" rx="6.5" ry="6.5"/><ellipse cx="232" cy="214" rx="6.5" ry="6.5"/></g>
+      <path d="M204 222 C206 238 208 248 198 252" fill="none" stroke="#c99a73" stroke-width="2.5" stroke-linecap="round"/>
+      <ellipse id="pMouth" cx="200" cy="276" rx="13" ry="2.5" fill="#8b4a3a"/>
+    </g>
+    <g id="oHead" class="layer off">
+      <path d="M200 100 C280 100 312 150 312 222 C312 300 262 336 200 340 C138 336 88 300 88 222 C88 150 120 100 200 100Z" fill="#6b5641"/>
+      <path d="M200 120 C150 160 130 230 160 300 C180 320 220 320 240 300 C270 230 250 160 200 120Z" fill="#8a7155" opacity=".55"/>
+    </g>
+    <g id="oTufts" class="layer off" fill="#4e3d2e">
+      <path d="M132 132 L96 34 C126 60 156 92 176 118Z"/><path d="M268 132 L304 34 C274 60 244 92 224 118Z"/>
+      <path d="M134 120 L108 56 L160 112Z" fill="#7c6449"/><path d="M266 120 L292 56 L240 112Z" fill="#7c6449"/>
+    </g>
+    <g id="oEyes" class="layer off">
+      <circle cx="168" cy="212" r="40" fill="#cdb592"/><circle cx="232" cy="212" r="40" fill="#cdb592"/>
+      <circle cx="168" cy="212" r="27" fill="#2a1d12"/><circle cx="232" cy="212" r="27" fill="#2a1d12"/>
+      <circle cx="168" cy="212" r="24" fill="url(#iris)"/><circle cx="232" cy="212" r="24" fill="url(#iris)"/>
+      <circle class="pupil" cx="168" cy="212" r="11" fill="#070504"/><circle class="pupil" cx="232" cy="212" r="11" fill="#070504"/>
+      <circle cx="161" cy="204" r="4" fill="#fff" opacity=".9"/><circle cx="225" cy="204" r="4" fill="#fff" opacity=".9"/>
+      <rect class="lid" clip-path="url(#ce1)" x="140" y="186" width="56" height="0" fill="#9c845f"/>
+      <rect class="lid" clip-path="url(#ce2)" x="204" y="186" width="56" height="0" fill="#9c845f"/>
+    </g>
+    <g id="oBeak" class="layer off">
+      <path d="M200 176 C186 160 156 152 128 164 C154 166 178 174 196 194Z M200 176 C214 160 244 152 272 164 C246 166 222 174 204 194Z" fill="#f1e9da"/>
+      <path id="lowBeak" d="M190 252 L200 280 L210 252 Q200 257 190 252Z" fill="#2c2621"/>
+      <path d="M188 234 C193 228 207 228 212 234 L205 266 Q200 276 195 266Z" fill="#1d1a18"/>
+    </g>
+  </g>`;
+}
+const F={blink:0,jaw:0,brow:0,roll:0},raw={blink:0,jaw:0,brow:0,roll:0};
+function applyFace(){
+  const b=F.blink,j=F.jaw;
+  document.querySelectorAll('#pEyes ellipse').forEach(e=>e.setAttribute('ry',Math.max(.6,6.5*(1-b))));
+  $('#pMouth').setAttribute('ry',2.5+j*14);$('#pBrows').setAttribute('transform',`translate(0 ${-F.brow*8})`);
+  document.querySelectorAll('#faceSvg .lid').forEach(r=>r.setAttribute('height',b*52));
+  document.querySelectorAll('#faceSvg .pupil').forEach(p=>p.setAttribute('r',11+F.brow*5));
+  $('#lowBeak').setAttribute('transform',`translate(0 ${j*16})`);
+  $('#all').setAttribute('transform',`rotate(${F.roll} 200 220)`);
+}
+function setStage(){ // 메인·한국 = 취침 시각만큼 올빼미, 그 나라 = 내 얼굴
+  const st=S.scene==='city'?0:stageOf(delayOf(S.bed)),cam=S.cam;
+  $('#person').classList.toggle('off',cam||st===3);$('#faceCv').classList.toggle('off',!cam);
+  $('#oTufts').classList.toggle('off',st<1);$('#oEyes').classList.toggle('off',st<2);
+  $('#oHead').classList.toggle('off',st<3);$('#oBeak').classList.toggle('off',st<3);
+}
+
+/* ===================== 웹캠 + 얼굴 인식 (GitHub Pages·로컬에서 작동) ===================== */
+const video=$('#video'),fc=$('#faceCv'),fx=fc.getContext('2d');let landmarker=null,lastT=-1,crop={x:0,y:0,s:1,ok:false};
+async function startCam(){
+  try{const st=await navigator.mediaDevices.getUserMedia({video:{width:640,height:480,facingMode:'user'},audio:false});video.srcObject=st;await video.play();}
+  catch(e){hint('이 화면에서는 카메라를 쓸 수 없어요. 깃허브 페이지에서 열면 작동해요. 지금은 마우스 데모예요.');return;}
+  S.cam=true;$('#cam').textContent='CAM ON';$('#cam').classList.add('on');setStage();hint('얼굴 인식 모델을 불러오는 중…');
+  try{
+    const V='0.10.14',vis=await import(`https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@${V}/vision_bundle.mjs`);
+    const files=await vis.FilesetResolver.forVisionTasks(`https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@${V}/wasm`);
+    landmarker=await vis.FaceLandmarker.createFromOptions(files,{baseOptions:{modelAssetPath:'https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task',delegate:'GPU'},outputFaceBlendshapes:true,runningMode:'VIDEO',numFaces:1});
+    hint('하품해 보세요.');
+  }catch(e){hint('얼굴 인식 모델을 불러오지 못했어요.');}
+}
+function track(){
+  if(!landmarker||video.readyState<2||video.currentTime===lastT)return;lastT=video.currentTime;
+  const r=landmarker.detectForVideo(video,performance.now());if(!r.faceLandmarks||!r.faceLandmarks.length)return;
+  const L=r.faceLandmarks[0],vw=video.videoWidth,vh=video.videoHeight,a=L[468],b=L[473];
+  const ex=(a.x+b.x)/2*vw,ey=(a.y+b.y)/2*vh,dist=Math.hypot((b.x-a.x)*vw,(b.y-a.y)*vh),k=crop.ok?.3:1;
+  crop.x+=(ex-crop.x)*k;crop.y+=(ey-crop.y)*k;crop.s+=(.16*fc.width/dist-crop.s)*k;crop.ok=true;   // 두 눈동자가 올빼미 눈 자리에 오도록
+  let vx=-(b.x-a.x)*vw,vy=(b.y-a.y)*vh;if(vx<0){vx=-vx;vy=-vy;}raw.roll=Math.atan2(vy,vx)*180/Math.PI;
+  const bs={};(r.faceBlendshapes?.[0]?.categories||[]).forEach(c=>bs[c.categoryName]=c.score);const cl=v=>Math.max(0,Math.min(1,v));
+  raw.blink=cl((((bs.eyeBlinkLeft||0)+(bs.eyeBlinkRight||0))/2-.25)/.45);raw.jaw=cl(((bs.jawOpen||0)-.06)/.5);raw.brow=cl(((bs.browInnerUp||0)-.1)/.55);
+}
+function drawCam(){
+  if(!S.cam||video.readyState<2)return;const N=fc.width;fx.clearRect(0,0,N,N);
+  fx.save();fx.beginPath();fx.ellipse(N/2,N*.54,N*.33,N*.42,0,0,7);fx.clip();
+  if(crop.ok){fx.translate(N/2,N*.53);fx.scale(-crop.s,crop.s);fx.drawImage(video,-crop.x,-crop.y);}
+  else{fx.translate(N,0);fx.scale(-1,1);fx.drawImage(video,0,0,N,N*video.videoHeight/video.videoWidth);}
+  fx.restore();
+}
+
+/* ===================== 조작 ===================== */
+let mDown=false,space=false,nextBlink=performance.now()+2200,wheelAcc=0;
+addEventListener('pointermove',e=>{if(landmarker)return;raw.roll=(e.clientX/innerWidth-.5)*36;raw.brow=Math.max(0,.45-e.clientY/innerHeight);});
+addEventListener('pointerdown',e=>{if(!e.target.closest('button'))mDown=true;});addEventListener('pointerup',()=>mDown=false);
+addEventListener('keydown',e=>{if(e.code==='Space'){space=true;e.preventDefault();}});addEventListener('keyup',e=>{if(e.code==='Space')space=false;});
+function step(n){const i=ORDER.indexOf(S.bed),j=Math.max(0,Math.min(ORDER.length-1,i+n));if(j!==i){S.bed=ORDER[j];update(true);}}
+addEventListener('wheel',e=>{e.preventDefault();wheelAcc+=e.deltaY;if(Math.abs(wheelAcc)>70){step(Math.sign(wheelAcc));wheelAcc=0;}},{passive:false});
+let ty=null;addEventListener('touchstart',e=>{ty=e.touches[0].clientY;},{passive:true});
+addEventListener('touchmove',e=>{if(ty==null)return;const dy=ty-e.touches[0].clientY;if(Math.abs(dy)>36){step(Math.sign(dy));ty=e.touches[0].clientY;}},{passive:true});
+$('#bed').addEventListener('keydown',e=>{if(e.key==='ArrowUp'||e.key==='ArrowRight'){step(1);e.preventDefault();}if(e.key==='ArrowDown'||e.key==='ArrowLeft'){step(-1);e.preventDefault();}});
+$('#landKR').onclick=()=>go(S.scene==='kr'?'main':'kr');$('#landCity').onclick=()=>go(S.scene==='city'?'main':'city');
+$('#home').onclick=()=>go('main');$('#cam').onclick=()=>{if(!S.cam)startCam();};
+function hint(t){$('#hint').textContent=t;}
+
+/* ===================== 장면·문구 ===================== */
+function go(sc){S.scene=sc;document.body.classList.toggle('scene',sc!=='main');document.body.classList.toggle('city',sc==='city');update();}
+function update(fromScroll){
+  const c=city(),d=delayOf(S.bed);
+  $('#bed').firstChild.nodeValue=`${p2(S.bed)}:00`;$('#bed').setAttribute('aria-valuenow',S.bed);
+  $('#landCity').textContent=c.en;$('#cityLbl').textContent=`${c.en} · 지금`;
+  $('#landKR').setAttribute('aria-pressed',S.scene==='kr');$('#landCity').setAttribute('aria-pressed',S.scene==='city');
+  $('#landKR').classList.toggle('dim',S.scene==='city');$('#landCity').classList.toggle('dim',S.scene==='kr');
+  const t=localParts(c.tz);let cap;
+  if(d===0)cap=`23시에 잠드는 당신은 <b>서울 사람</b>이에요.`;
+  else if(S.scene==='kr')cap=d>0?`서울에서 당신은 <b>올빼미</b>입니다. 지금은 ${korHour(S.bed)}.`:`서울에서 당신은 일찍 잠드는 사람입니다.`;
+  else if(S.scene==='city')cap=`${josa(c.ko,'에서','에서')} 당신은 올빼미가 아니에요. 지금 ${partOfDay(t.h)}을 보내는 <b>주민</b>입니다.`;
+  else cap=`서울 ${p2(S.bed)}:00 = ${c.ko} 23:00 · 시차 <b>${Math.abs(d)}시간</b>`;
+  $('#caption').innerHTML=cap;
+  setStage();drawBg();drawDial();tick();
+}
+function tick(){
+  const k=localParts('Asia/Seoul'),c=localParts(city().tz);
+  $('#krNow').firstChild.nodeValue=`${p2(k.h)}:${p2(k.m)}`;$('#cityNow').firstChild.nodeValue=`${p2(c.h)}:${p2(c.m)}`;
+}
+
+/* ===================== 하품 ===================== */
+let yawnT=0,toastUntil=0;
+function checkYawn(now,dt){
+  if(F.jaw>.55&&F.blink>.45)yawnT+=dt;else yawnT=Math.max(0,yawnT-dt*2);
+  if(yawnT>700&&now>toastUntil){yawnT=0;toastUntil=now+4200;const c=city(),t=localParts(c.tz);
+    const msg=S.scene==='city'?`${josa(c.ko,'은','는')} 지금 ${korHour(t.h)}예요. 아직 잘 시간이 아니에요.`:`졸리죠? 서울은 지금 ${korHour(S.bed)}예요.`;
+    const el=$('#toast');el.textContent=msg;el.classList.add('on');setTimeout(()=>el.classList.remove('on'),3800);}
+}
+
+/* ===================== 루프 ===================== */
+let prev=performance.now();
+function loop(now){
+  const dt=now-prev;prev=now;track();
+  if(!landmarker){let bl=mDown?1:0;if(now>nextBlink){bl=1;if(now>nextBlink+140)nextBlink=now+2200+Math.random()*3000;}raw.blink=bl;raw.jaw=space?1:0;}
+  for(const n in F)F[n]+=(raw[n]-F[n])*.35;
+  applyFace();drawCam();checkYawn(now,dt);requestAnimationFrame(loop);
+}
+addEventListener('resize',()=>{drawBg();drawDial();});
+buildFace();update();setInterval(tick,1000);setInterval(()=>{if(S.scene==='city')drawBg();},60000);requestAnimationFrame(loop);
+document.fonts&&document.fonts.ready.then(drawDial);
+</script>
+
+</body></html>
