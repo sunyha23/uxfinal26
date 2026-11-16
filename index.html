@@ -30,12 +30,21 @@ svg{position:absolute;inset:0;width:100%;height:100%}
 #cam.on{opacity:1}
 :root[data-scene="kr"] #cam{filter:invert(1)}
 #stage{z-index:1}
+#face{position:fixed;border-radius:50%;overflow:hidden;z-index:2;pointer-events:none}
+#me{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;transform:scaleX(-1);opacity:0;transition:opacity .5s,filter .6s}
+#me.on{opacity:1}
+:root[data-scene="kr"] #me{filter:invert(1)}
+#owl{position:absolute;left:50%;translate:-50% 0;pointer-events:none;transition:opacity .4s}
+#owl.s0{opacity:0}#owl.s1{width:110%;top:-4%}#owl.s2{width:108%;top:0}#owl.s3{width:108%;top:-9%}
+#camBtn{position:absolute;left:50%;bottom:16%;translate:-50% 0;pointer-events:auto;border:0;border-radius:20px;padding:6px 12px;font:800 11px Inter,sans-serif;letter-spacing:.08em;background:#111;color:#fff;cursor:pointer}
+#camBtn:hover{background:var(--acc);color:#111}
 #greet-unused{position:absolute;left:50%;top:69%;translate:-50% -50%;font:900 clamp(26px,4.2vw,60px)/1 Inter,'Noto Sans KR',sans-serif;color:#fff;-webkit-text-stroke:2px #111;paint-order:stroke;opacity:0;transition:opacity .15s;pointer-events:none;white-space:nowrap}
 #up{position:absolute;left:4.4vw;bottom:13vh;font-size:11px;letter-spacing:.08em;opacity:0;pointer-events:none;cursor:pointer;border-bottom:1px solid currentColor;transition:opacity .4s}
 :root[data-scene="city"] #up{opacity:.55;pointer-events:auto}
 </style>
 <div id="camwrap"><div id="camph"></div><iframe id="cam" allow="autoplay; encrypted-media; picture-in-picture" tabindex="-1" title="live cam"></iframe></div>
 <div id="stage"><svg id="s" viewBox="0 0 1440 900" preserveAspectRatio="xMidYMid meet"></svg></div>
+<div id="face"><video id="me" autoplay muted playsinline></video><img id="owl" alt=""><button id="camBtn" type="button">CAM 켜기</button></div>
 <h2 class="t" id="hi"><span id="h1"></span><br><span id="h2"></span></h2>
 <div class="t" id="n24">24</div><div class="t" id="n12">12</div><div class="t" id="bed"></div>
 <div class="t clk" id="kc"><small>KOREA</small><b id="kt"></b></div>
@@ -96,7 +105,7 @@ function build(){
  if(d>0){const r=190,[a,bb]=P(0,r),[c,e]=P(d*15,r);s+=`<path d="M${a},${bb} A${r},${r} 0 ${d>12?1:0} 1 ${c},${e}" fill="none" stroke="#111" stroke-width="14"/><path d="M${a},${bb} A${r},${r} 0 ${d>12?1:0} 1 ${c},${e}" fill="none" stroke="${ACC}" stroke-width="9"/>`;}
  s+=`<line x1="${cx-205}" y1="${cy}" x2="${cx-106}" y2="${cy}" stroke="${city?'#fff':'#111'}" stroke-opacity=".4" stroke-width="2"/><line x1="${cx+106}" y1="${cy}" x2="${cx+205}" y2="${cy}" stroke="${city?'#fff':'#111'}" stroke-opacity=".4" stroke-width="2"/>`;
  s+=`<circle cx="${cx}" cy="${cy}" r="106" fill="#111"/><g clip-path="url(#hole)" style="${city?'':'filter:invert(1)'}"><rect x="${cx-100}" y="${cy-100}" width="200" height="200" fill="#d8d2c8"/><ellipse cx="${cx}" cy="${cy+28}" rx="52" ry="66" fill="#d9b9a0"/><ellipse cx="${cx}" cy="${cy-22}" rx="56" ry="36" fill="#3c2c26"/></g>`;
- if(!city&&st){const im=OWL[st];s+=st===1?`<image href="${im}" x="${cx-110}" y="${cy-108}" width="220" height="78" clip-path="url(#hole)"/>`:st===2?`<image href="${im}" x="${cx-108}" y="${cy-100}" width="216" height="157" clip-path="url(#hole)"/>`:`<image href="${im}" x="${cx-108}" y="${cy-118}" width="216" height="244" clip-path="url(#hole)"/>`;}
+ // 올빼미·웹캠 얼굴은 HTML 레이어(#face)에서 그림
  s+=`</g>`;
  // wall labels
  s+=`<text class="lab" id="lk" transform="translate(86 ${cy}) rotate(-90)" font-size="40" font-weight="900" text-anchor="middle" dominant-baseline="middle" fill="${city?'#111':ACC}">KOREA</text>`;
@@ -219,9 +228,18 @@ function updateCam(){placeCam();const b=B();let key,src,ph;
  if(key===camKey)return;camKey=key;clearTimeout(camT);const f=document.getElementById('cam');f.classList.remove('on');document.getElementById('camph').textContent=ph;
  camT=setTimeout(()=>{if(!src){f.removeAttribute('src');return;}f.src=src;f.onload=()=>setTimeout(()=>f.classList.add('on'),600);},450);}
 addEventListener('resize',placeCam);
-function render(){rot=targetRot();build();updateHi();updateCam();}
+
+// ===== 웹캠 얼굴 (가운데 구멍) + 올빼미 단계 =====
+let camStream=null;
+function placeFace(){const m=document.getElementById('s').getScreenCTM();if(!m)return;const r=100*K*m.a,x=cx*m.a+m.e,y=cy*m.d+m.f;Object.assign(document.getElementById('face').style,{left:(x-r)+'px',top:(y-r)+'px',width:2*r+'px',height:2*r+'px'});}
+function updateFace(){placeFace();const st=SCENE==='city'?0:stage(late()),o=document.getElementById('owl');o.className='s'+st;if(st)o.src=OWL[st];}
+async function startCam(){const btn=document.getElementById('camBtn');try{camStream=await navigator.mediaDevices.getUserMedia({video:{facingMode:'user'},audio:false});const v=document.getElementById('me');v.srcObject=camStream;await v.play().catch(()=>{});v.classList.add('on');btn.remove();}
+ catch(e){btn.textContent='카메라를 켤 수 없어요';setTimeout(()=>btn.textContent='CAM 다시 시도',2000);}}
+document.getElementById('camBtn').addEventListener('click',e=>{e.stopPropagation();startCam();});
+addEventListener('resize',placeFace);
+function render(){rot=targetRot();build();updateHi();updateCam();updateFace();}
 function step(dir){const n=Math.max(0,Math.min(ORDER.length-1,idx+dir));if(n===idx)return;idx=n;playStep();
- rot=targetRot();const r=document.getElementById('reel');if(r)r.style.transform=`rotate(${rot}deg)`;setTimeout(()=>{build();updateCam();},330);updateHi();
+ rot=targetRot();const r=document.getElementById('reel');if(r)r.style.transform=`rotate(${rot}deg)`;setTimeout(()=>{build();updateCam();},330);updateHi();updateFace();
  const b=B(),d=late(),ACC=SCENE==='city'?'#E5402A':'#4FEBC0';document.getElementById('bed').textContent=p2(b)+':00';document.getElementById('bed').style.color=d?ACC:'';}
 function setScene(s){if(SCENE===s)return;SCENE=s;segShown='';greets=[];hoots=[];clearTimeout(hootBack);document.getElementById('hi').classList.remove('hooting');document.getElementById('hi').classList.remove('greeting');document.documentElement.dataset.scene=s==='city'?'city':'kr';tick();render();if(s!=='city')try{speechSynthesis.cancel()}catch(e){}}
 let acc=0,lock=false;addEventListener('wheel',e=>{e.preventDefault();scratch(e.deltaY*.006);acc+=e.deltaY;if(lock||Math.abs(acc)<40)return;step(acc>0?1:-1);acc=0;lock=true;setTimeout(()=>lock=false,140);},{passive:false});
