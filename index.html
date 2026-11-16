@@ -1,5 +1,3 @@
-<!doctype html>
-<html lang="ko"><head><meta charset="utf-8"></head><body>
 <title>OWL CLOCK Reel</title>
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -103,8 +101,7 @@ function build(){
  else{s+=`<circle cx="${cx}" cy="${cy}" r="205" fill="none" stroke="#111" stroke-width="2"/><text x="${cx}" y="${cy-130}" font-size="11" font-weight="800" letter-spacing="2" text-anchor="middle" fill="#fff" stroke="#111" stroke-width="3" paint-order="stroke">● ${CAM[b]?(CAM[b][1]?"LIVE":"REC"):"CAM"} · ${C[0]} 07:00</text>`;}
  if(d>0){const r=190,[a,bb]=P(0,r),[c,e]=P(d*15,r);s+=`<path d="M${a},${bb} A${r},${r} 0 ${d>12?1:0} 1 ${c},${e}" fill="none" stroke="#111" stroke-width="14"/><path d="M${a},${bb} A${r},${r} 0 ${d>12?1:0} 1 ${c},${e}" fill="none" stroke="${ACC}" stroke-width="9"/>`;}
  s+=`<line x1="${cx-205}" y1="${cy}" x2="${cx-106}" y2="${cy}" stroke="${city?'#fff':'#111'}" stroke-opacity=".4" stroke-width="2"/><line x1="${cx+106}" y1="${cy}" x2="${cx+205}" y2="${cy}" stroke="${city?'#fff':'#111'}" stroke-opacity=".4" stroke-width="2"/>`;
- s+=`<circle cx="${cx}" cy="${cy}" r="106" fill="#111"/><g clip-path="url(#hole)" style="${city?'':'filter:invert(1)'}"><rect x="${cx-100}" y="${cy-100}" width="200" height="200" fill="#d8d2c8"/><ellipse cx="${cx}" cy="${cy+28}" rx="52" ry="66" fill="#d9b9a0"/><ellipse cx="${cx}" cy="${cy-22}" rx="56" ry="36" fill="#3c2c26"/></g>`;
- // 올빼미·웹캠 얼굴은 HTML 레이어(#face)에서 그림
+ // 가운데는 항상 라이브캠(배경)이 그대로 보임 — 캠이 꺼져있으면 라이브캠 배경만, 켜지면 그 위에 얼굴만 뜸 (HTML 레이어 #face)
  s+=`</g>`;
  // wall labels
  s+=`<text class="lab" id="lk" transform="translate(86 ${cy}) rotate(-90)" font-size="40" font-weight="900" text-anchor="middle" dominant-baseline="middle" fill="${city?'#111':ACC}">KOREA</text>`;
@@ -256,7 +253,7 @@ function track(){const v=document.getElementById('me');if(!landmarker||v.readySt
 let jawWas=false;
 function drawFace(){if(!faceOn)return;requestAnimationFrame(drawFace);const v=document.getElementById('me');if(v.readyState<2)return;track();
  for(const q of ['roll','blink','jaw'])sm[q]+=(raw[q]-sm[q])*(q==='blink'?.6:.3);
- const night=SCENE!=='city';fx.clearRect(0,0,N,N);fx.save();fx.beginPath();fx.arc(N/2,N/2,N/2,0,7);fx.clip();
+ const night=SCENE!=='city';fx.clearRect(0,0,N,N);
  fx.filter=night?'invert(1)':'none';
  if(crop.ok){fx.save();fx.translate(N/2,N*.5);fx.scale(crop.s,crop.s);fx.scale(-1,1);fx.translate(-(v.videoWidth-crop.x),-crop.y);fx.drawImage(v,0,0);fx.restore();}
  else{const vs=Math.max(N/v.videoWidth,N/v.videoHeight)*1.6;fx.save();fx.translate(N/2,N*.5);fx.scale(-vs,vs);fx.drawImage(v,-v.videoWidth/2,-v.videoHeight*.42);fx.restore();}
@@ -268,7 +265,11 @@ function drawFace(){if(!faceOn)return;requestAnimationFrame(drawFace);const v=do
   if(st===1){const w=D*2.3,h=w*im.naturalHeight/im.naturalWidth;fx.drawImage(im,-w/2,-D*.48-h,w,h);}
   else{const [ex,ey,ed]=EYE[key],sc=D/ed;fx.drawImage(im,-ex*sc,-ey*sc,im.naturalWidth*sc,im.naturalHeight*sc);}
   fx.restore();}}
- fx.restore();
+ // 원형 창틀 없이 얼굴(올빼미)만 라이브캠 배경 위에 떠 보이도록, 가장자리를 부드럽게 지움
+ fx.save();fx.globalCompositeOperation='destination-in';
+ const R=N/2,g=fx.createRadialGradient(N/2,N*.5,R*.34,N/2,N*.5,R*.8);
+ g.addColorStop(0,'rgba(0,0,0,1)');g.addColorStop(.72,'rgba(0,0,0,1)');g.addColorStop(1,'rgba(0,0,0,0)');
+ fx.fillStyle=g;fx.fillRect(0,0,N,N);fx.restore();
  if(night&&sm.jaw>.6&&!jawWas){jawWas=true;try{audio();if(voices<MAXV)hoot(late());}catch(e){}}if(sm.jaw<.3)jawWas=false;}
 document.getElementById('camBtn').addEventListener('click',e=>{e.stopPropagation();startCam();});
 addEventListener('resize',placeFace);
@@ -283,4 +284,3 @@ let ty=null;addEventListener('touchstart',e=>ty=e.touches[0].clientY,{passive:tr
 document.documentElement.dataset.scene='kr';render();
 (document.querySelector('#up input')||{addEventListener(){}}).addEventListener('change',async e=>{const f=e.target.files[0];if(!f)return;try{audio();const b=await ac.decodeAudioData(await f.arrayBuffer());TRACK=b;TRACKR=reverseBuf(b);userTrack=true;pos=0;if(!sg){sg=ac.createGain();sg.gain.value=0;sg.connect(master);}document.getElementById('up').firstChild.textContent='음원: '+f.name.slice(0,24);}catch(err){alert;}});
 </script>
-</body></html>
